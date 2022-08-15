@@ -69,7 +69,7 @@ export default function parse(source) {
                     const retrievedHints = retrieve(value, regex);
                     const retrieveStatus = {};
                     hints.forEach(({ regex, value: statusValue }) => {
-                        regex = new RegExp(regex);
+                        regex = new RegExp(regex, "ig");
                         if (regex.test(retrievedHints)) {
                             retrieveStatus[statusValue] = true;
                         }
@@ -87,7 +87,7 @@ export default function parse(source) {
                 if (!provider) hostdata.update({ provider: value });
                 else if (!regex) hostdata.update({ provider });
                 else {
-                    regex = new RegExp(regex);
+                    regex = new RegExp(regex, "ig");
                     if (regex.test(value)) hostdata.update({ provider });
                 }
             });
