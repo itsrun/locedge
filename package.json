@@ -1,0 +1,24 @@
+{
+  "name": "locedge",
+  "description": "A CDN debugging tool that can identify CDN provider, geolocate CDN edge servers, and determine cache status based on a HTTP Archive (HAR) file.",
+  "keywords": [
+    "CDN",
+    "Monitor",
+    "Debug",
+    "CDN Finder",
+    "Geolocation"
+  ],
+  "homepage": "https://locedgex.web.app",
+  "author": {
+    "name": "Run Huang",
+    "email": "itsrunhuang@outlook.com"
+  },
+  "version": "1.1.0",
+  "repository": {
+    "url": "git://github.com/ruh010/locedge.git"
+  },
+  "type": "module",
+  "devDependencies": {
+    "jest": "^28.1.3"
+  }
+}
