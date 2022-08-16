@@ -26,7 +26,7 @@ const retrieve = (value, regex) => {
  * @param {Object} source the source data to be parsed
  * @returns {Array<HostModel>}
  */
-function locedge(data) {
+export default function locedge(data) {
     const { log: { entries } } = data;
     const relatedHeaders = new Set([
         "cache-control",
