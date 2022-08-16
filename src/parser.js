@@ -85,7 +85,3 @@ export default function locedge(data) {
     });
     return data;
 };
-
-import test from "../test.js"
-import { writeFileSync } from "fs"
-writeFileSync("test.json", JSON.stringify(locedge(test)));
