@@ -1,10 +1,9 @@
 "use strict";
-import SourceModel from "./models/source.model.js";
-import HostModel from "./models/host.model.js";
 import geoHints from "../rules/geo.rules.js";
 import cacheHints from "../rules/cache.rules.js";
 import featureHints from "../rules/feature.rules.js";
 import iata from "../rules/iata.js";
+import EdgeInfo from "./edgeInfo.js";
 
 /**
  * Extract all matches from the provided string.
@@ -14,86 +13,75 @@ import iata from "../rules/iata.js";
  */
 const retrieve = (value, regex) => {
     regex = new RegExp(regex, "ig");
-    let match, retrievedHints = new Set(), pops = new Set();
+    let match, res = [];
     while (match = regex.exec(value)) {
-        try {
-            pops.add(match[1]);
-            match.slice(2,).forEach((hint) => retrievedHints.add(hint.toLowerCase()));
-        } catch (exc) { }
+        res = res.concat(match.slice(1,).map((hint) => hint.toLowerCase()));
     }
-    return { pops: Array.from(pops), retrievedHints: Array.from(retrievedHints) };
+    return [...new Set(res)];
 };
 
 /**
  * Extract geographic hints and cache hints from the given source
  * data to identify CDN providers and geolocate CDN edge servers.
- * @param {SourceModel|Object} source the source data to be parsed
+ * @param {Object} source the source data to be parsed
  * @returns {Array<HostModel>}
  */
-export default function parse(source) {
-    if (!(source instanceof SourceModel)) {
-        source = new SourceModel(source);
-    }
+function locedge(data) {
+    const { log: { entries } } = data;
+    const relatedHeaders = new Set([
+        "cache-control",
+        ...Object.keys(geoHints),
+        ...Object.keys(cacheHints),
+        ...Object.keys(featureHints)
+    ]);
 
-    const result = {};
-    source = source.data;
-
-    for (const { url, ip, headers } of source) {
-        const { hostname } = new URL(url);
-        const hostdata = result[hostname] || (result[hostname] = new HostModel(hostname));
-        const resourcedata = hostdata.addResource(url);
-        hostdata.update({ ip });
-
-        headers.forEach(({ name, value }) => {
+    entries.forEach((entry) => {
+        const entryResult = new EdgeInfo();
+        entry.response.headers.forEach(({ name, value }) => {
+            if (!relatedHeaders.has(name)) return;
             const geoRules = geoHints[name];
             geoRules && geoRules.forEach(({ provider, regex, hints }) => {
-                const { pops, retrievedHints } = retrieve(value, regex);
-                retrievedHints.forEach((hint) => {
-                    resourcedata.update({
-                        location: typeof hints === "string" ? iata[hint] : hints[hint]
-                    });
-                });
-                pops.forEach((pop) => {
-                    resourcedata.update({ pop })
-                });
-                retrievedHints.length && hostdata.update({ provider });
+                const retrievedHints = retrieve(value, regex);
+                retrievedHints.forEach((hint) => entryResult.update({
+                    location: typeof hints === "string" ? iata[hint] : hints[hint],
+                    pop: hint,
+                }));
+                retrievedHints.length && entryResult.update({ provider });
             });
-            
-            if (name in cacheHints) {
-                const { provider, regex, hints } = cacheHints[name];
-                if (!regex) {
-                    hostdata.update({ provider });
-                    resourcedata.update({ cacheStatus: value });
-                }
+
+            const cacheRules = cacheHints[name];
+            cacheRules && cacheRules.forEach(({ provider, regex, hints }) => {
+                if (!regex) entryResult.update({ provider, cacheStatus: value });
                 else {
                     const retrievedHints = retrieve(value, regex);
-                    const retrieveStatus = {};
+                    const retrievedStatus = {};
                     hints.forEach(({ regex, value: statusValue }) => {
                         regex = new RegExp(regex, "ig");
-                        if (regex.test(retrievedHints)) {
-                            retrieveStatus[statusValue] = true;
-                        }
+                        retrievedHints.forEach((hint) => {
+                            if (regex.test(hint)) {
+                                retrievedStatus[statusValue] = true;
+                            }
+                        });
                     });
-                    resourcedata.update({
-                        cacheStatus: retrieveStatus.hit ? "HIT" : (
-                            retrieveStatus.expired ? "EXPIRED" : "MISS"
+                    entryResult.update({
+                        provider, cacheStatus: retrievedStatus.hit ? "HIT" : (
+                            retrievedStatus.expired ? "EXPIRED" : "MISS"
                         )
                     });
                 }
-            }
-
-            const cdnRules = featureHints[name];
-            cdnRules && cdnRules.forEach(({ provider, regex }) => {
-                if (!provider) hostdata.update({ provider: value });
-                else if (!regex) hostdata.update({ provider });
-                else {
-                    regex = new RegExp(regex, "ig");
-                    if (regex.test(value)) hostdata.update({ provider });
-                }
             });
 
-            name === "cache-control" && resourcedata.update({ cacheControl: value });
+            const featureRules = featureHints[name];
+            featureRules && featureRules.forEach(({ provider, regex }) => {
+                if (!provider) entryResult.update({ provider: value });
+                else if (!regex) entryResult.update({ provider });
+                else {
+                    regex = new RegExp(regex, "ig");
+                    if (regex.test(value)) entryResult.update({ provider });
+                }
+            });
         });
-    }
-    return Object.values(result).map((value) => value.toJSON());
+        entry["_edgeInfo"] = entryResult.toJSON();
+    });
+    return data;
 };

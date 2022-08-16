@@ -1,6 +1,10 @@
-export default class BaseModel {
-    constructor(key) {
-        this._key = key;
+export default class EdgeInfo{
+    constructor() {
+        this._pop = new Set();
+        this._provider = new Set();
+        this._location = new Set();
+        this._cacheStatus = new Set();
+        this._cacheControl = null;
     }
 
     update(data = {}) {
@@ -32,4 +36,4 @@ export default class BaseModel {
         });
         return result;
     }
-};
+}
